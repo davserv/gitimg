@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitHub Image Uploader</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"/>
+    <style>
+        .dropzone {
+            border: 2px dashed #cbd5e0;
+            transition: all 0.3s ease;
+        }
+        .dropzone.active {
+            border-color: #4299e1;
+            background-color: #ebf8ff;
+        }
+        .progress-bar {
+            transition: width 0.3s ease;
+        }
+        #previewContainer {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 1rem;
+        }
+        .preview-image {
+            position: relative;
+            transition: transform 0.2s;
+        }
+        .preview-image:hover {
+            transform: scale(1.03);
+        }
+        .delete-btn {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        .preview-image:hover .delete-btn {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <div class="container mx-auto px-4 py-8 max-w-4xl">
+        <div class="text-center mb-8">
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">GitHub Image Uploader</h1>
+            <p class="text-gray-600">Upload your images directly to your GitHub repository</p>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-md overflow-hidden p-6 mb-8">
+            <div class="flex flex-col md:flex-row gap-6">
+                <!-- GitHub Configuration -->
+                <div class="w-full md:w-1/3 bg-gray-50 p-4 rounded-lg">
+                    <h2 class="text-lg font-semibold text-gray-700 mb-4 flex items-center">
+                        <i class="fab fa-github mr-2 text-gray-800"></i> GitHub Setup
+                    </h2>
+                    
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Repository Owner</label>
+                            <input type="text" id="repoOwner" placeholder="your-username" 
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Repository Name</label>
+                            <input type="text" id="repoName" placeholder="your-repo" 
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Branch</label>
+                            <input type="text" id="branchName" placeholder="main" value="main" 
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Directory Path</label>
+                            <input type="text" id="directoryPath" placeholder="images/" 
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">GitHub Token</label>
+                            <div class="relative">
+                                <input type="password" id="githubToken" placeholder="ghp_..." 
+                                       class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <button id="toggleToken" class="absolute right-3 top-2 text-gray-500 hover:text-gray-700">
+                                    <i class="far fa-eye"></i>
+                                </button>
+                            </div>
+                            <p class="text-xs text-gray-500 mt-1">
+                                <a href="https://github.com/settings/tokens" target="_blank" class="text-blue-500 hover:underline">Create token</a> with "repo" permissions
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Upload Area -->
+                <div class="w-full md:w-2/3">
+                    <div id="dropzone" class="dropzone rounded-lg p-8 text-center cursor-pointer mb-4">
+                        <div class="flex flex-col items-center justify-center space-y-2">
+                            <i class="fas fa-cloud-upload-alt text-4xl text-blue-500"></i>
+                            <h3 class="text-lg font-medium text-gray-700">Drag & drop images here</h3>
+                            <p class="text-sm text-gray-500">or click to browse files</p>
+                            <input type="file" id="fileInput" class="hidden" accept="image/*" multiple>
+                        </div>
+                    </div>
+                    
+                    <div id="uploadProgress" class="hidden">
+                        <div class="flex justify-between text-sm text-gray-600 mb-1">
+                            <span>Uploading...</span>
+                            <span id="progressText">0%</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-2.5">
+                            <div id="progressBar" class="progress-bar bg-blue-600 h-2.5 rounded-full" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="flex justify-between mt-4">
+                        <button id="uploadBtn" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-medium disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                            <i class="fas fa-upload mr-2"></i> Upload to GitHub
+                        </button>
+                        
+                        <button id="clearBtn" class="text-gray-600 hover:text-gray-800 px-4 py-2 rounded-md font-medium">
+                            <i class="fas fa-trash-alt mr-2"></i> Clear All
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Preview Section -->
+        <div id="previewSection" class="hidden bg-white rounded-xl shadow-md overflow-hidden p-6">
+            <h2 class="text-lg font-semibold text-gray-700 mb-4 flex items-center">
+                <i class="fas fa-images mr-2 text-blue-500"></i> Selected Images
+            </h2>
+            
+            <div id="previewContainer" class="mb-4"></div>
+            
+            <div class="text-sm text-gray-500">
+                <span id="fileCount">0</span> images selected
+            </div>
+        </div>
+        
+        <!-- Results Section -->
+        <div id="resultsSection" class="hidden bg-white rounded-xl shadow-md overflow-hidden p-6 mt-6">
+            <h2 class="text-lg font-semibold text-gray-700 mb-4 flex items-center">
+                <i class="fas fa-check-circle mr-2 text-green-500"></i> Upload Results
+            </h2>
+            
+            <div id="resultsList" class="space-y-2"></div>
+            
+            <div class="mt-4 flex justify-end">
+                <button id="copyLinksBtn" class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-md font-medium">
+                    <i class="fas fa-copy mr-2"></i> Copy Links
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // DOM Elements
+            const dropzone = document.getElementById('dropzone');
+            const fileInput = document.getElementById('fileInput');
+            const previewContainer = document.getElementById('previewContainer');
+            const previewSection = document.getElementById('previewSection');
+            const fileCount = document.getElementById('fileCount');
+            const uploadBtn = document.getElementById('uploadBtn');
+            const clearBtn = document.getElementById('clearBtn');
+            const uploadProgress = document.getElementById('uploadProgress');
+            const progressBar = document.getElementById('progressBar');
+            const progressText = document.getElementById('progressText');
+            const resultsSection = document.getElementById('resultsSection');
+            const resultsList = document.getElementById('resultsList');
+            const copyLinksBtn = document.getElementById('copyLinksBtn');
+            const toggleToken = document.getElementById('toggleToken');
+            const githubToken = document.getElementById('githubToken');
+            
+            // State
+            let files = [];
+            let uploadedUrls = [];
+            
+            // Event Listeners
+            dropzone.addEventListener('click', () => fileInput.click());
+            
+            fileInput.addEventListener('change', handleFileSelect);
+            
+            dropzone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dropzone.classList.add('active');
+            });
+            
+            dropzone.addEventListener('dragleave', () => {
+                dropzone.classList.remove('active');
+            });
+            
+            dropzone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropzone.classList.remove('active');
+                if (e.dataTransfer.files.length) {
+                    fileInput.files = e.dataTransfer.files;
+                    handleFileSelect({ target: fileInput });
+                }
+            });
+            
+            uploadBtn.addEventListener('click', uploadToGitHub);
+            
+            clearBtn.addEventListener('click', clearAll);
+            
+            copyLinksBtn.addEventListener('click', copyLinksToClipboard);
+            
+            toggleToken.addEventListener('click', () => {
+                const type = githubToken.getAttribute('type') === 'password' ? 'text' : 'password';
+                githubToken.setAttribute('type', type);
+                toggleToken.innerHTML = type === 'password' ? '<i class="far fa-eye"></i>' : '<i class="far fa-eye-slash"></i>';
+            });
+            
+            // Functions
+            function handleFileSelect(e) {
+                const newFiles = Array.from(e.target.files);
+                
+                // Filter only image files
+                const imageFiles = newFiles.filter(file => file.type.startsWith('image/'));
+                
+                if (imageFiles.length === 0) {
+                    alert('Please select only image files (JPEG, PNG, etc.)');
+                    return;
+                }
+                
+                files = [...files, ...imageFiles];
+                updatePreview();
+                updateUploadButton();
+            }
+            
+            function updatePreview() {
+                previewContainer.innerHTML = '';
+                
+                files.forEach((file, index) => {
+                    const reader = new FileReader();
+                    
+                    reader.onload = (e) => {
+                        const previewDiv = document.createElement('div');
+                        previewDiv.className = 'preview-image relative';
+                        
+                        previewDiv.innerHTML = `
+                            <img src="${e.target.result}" alt="${file.name}" class="w-full h-32 object-cover rounded-lg">
+                            <button class="delete-btn bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center shadow-md hover:bg-red-600" data-index="${index}">
+                                <i class="fas fa-times text-xs"></i>
+                            </button>
+                        `;
+                        
+                        previewContainer.appendChild(previewDiv);
+                        
+                        // Add delete event
+                        previewDiv.querySelector('.delete-btn').addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            deleteImage(index);
+                        });
+                    };
+                    
+                    reader.readAsDataURL(file);
+                });
+                
+                fileCount.textContent = files.length;
+                previewSection.classList.remove('hidden');
+            }
+            
+            function deleteImage(index) {
+                files.splice(index, 1);
+                updatePreview();
+                updateUploadButton();
+                
+                if (files.length === 0) {
+                    previewSection.classList.add('hidden');
+                }
+            }
+            
+            function clearAll() {
+                files = [];
+                fileInput.value = '';
+                previewContainer.innerHTML = '';
+                previewSection.classList.add('hidden');
+                resultsSection.classList.add('hidden');
+                uploadedUrls = [];
+                updateUploadButton();
+            }
+            
+            function updateUploadButton() {
+                const repoOwner = document.getElementById('repoOwner').value.trim();
+                const repoName = document.getElementById('repoName').value.trim();
+                const githubTokenValue = document.getElementById('githubToken').value.trim();
+                
+                uploadBtn.disabled = !(files.length > 0 && repoOwner && repoName && githubTokenValue);
+            }
+            
+            // Add input event listeners for GitHub config fields
+            document.getElementById('repoOwner').addEventListener('input', updateUploadButton);
+            document.getElementById('repoName').addEventListener('input', updateUploadButton);
+            document.getElementById('githubToken').addEventListener('input', updateUploadButton);
+            
+            async function uploadToGitHub() {
+                const repoOwner = document.getElementById('repoOwner').value.trim();
+                const repoName = document.getElementById('repoName').value.trim();
+                const branchName = document.getElementById('branchName').value.trim() || 'main';
+                const directoryPath = document.getElementById('directoryPath').value.trim();
+                const token = document.getElementById('githubToken').value.trim();
+                
+                if (!repoOwner || !repoName || !token) {
+                    alert('Please fill in all required GitHub fields');
+                    return;
+                }
+                
+                if (files.length === 0) {
+                    alert('No files selected');
+                    return;
+                }
+                
+                uploadBtn.disabled = true;
+                uploadProgress.classList.remove('hidden');
+                resultsList.innerHTML = '';
+                
+                let successCount = 0;
+                uploadedUrls = [];
+                
+                for (let i = 0; i < files.length; i++) {
+                    const file = files[i];
+                    const fileName = file.name;
+                    const filePath = directoryPath ? `${directoryPath}/${fileName}` : fileName;
+                    
+                    // Update progress
+                    const progress = Math.round(((i + 1) / files.length) * 100);
+                    progressBar.style.width = `${progress}%`;
+                    progressText.textContent = `${progress}%`;
+                    
+                    try {
+                        const content = await readFileAsBase64(file);
+                        const url = await uploadFileToGitHub(
+                            repoOwner, 
+                            repoName, 
+                            branchName, 
+                            filePath, 
+                            content, 
+                            token
+                        );
+                        
+                        uploadedUrls.push(url);
+                        successCount++;
+                        
+                        // Add to results list
+                        const resultItem = document.createElement('div');
+                        resultItem.className = 'flex items-center justify-between p-2 bg-gray-50 rounded';
+                        resultItem.innerHTML = `
+                            <div class="flex items-center">
+                                <img src="${URL.createObjectURL(file)}" alt="${fileName}" class="w-10 h-10 object-cover rounded mr-3">
+                                <span class="text-sm font-medium">${fileName}</span>
+                            </div>
+                            <div class="flex items-center">
+                                <a href="${url}" target="_blank" class="text-blue-500 hover:underline text-sm mr-3">View</a>
+                                <span class="text-green-500 text-sm"><i class="fas fa-check-circle mr-1"></i> Success</span>
+                            </div>
+                        `;
+                        resultsList.appendChild(resultItem);
+                    } catch (error) {
+                        console.error('Upload failed:', error);
+                        
+                        const resultItem = document.createElement('div');
+                        resultItem.className = 'flex items-center justify-between p-2 bg-gray-50 rounded';
+                        resultItem.innerHTML = `
+                            <div class="flex items-center">
+                                <img src="${URL.createObjectURL(file)}" alt="${fileName}" class="w-10 h-10 object-cover rounded mr-3">
+                                <span class="text-sm font-medium">${fileName}</span>
+                            </div>
+                            <div class="flex items-center">
+                                <span class="text-red-500 text-sm"><i class="fas fa-times-circle mr-1"></i> Failed</span>
+                            </div>
+                        `;
+                        resultsList.appendChild(resultItem);
+                    }
+                }
+                
+                // Final update
+                progressBar.style.width = '100%';
+                progressText.textContent = '100%';
+                
+                // Show results
+                resultsSection.classList.remove('hidden');
+                uploadBtn.disabled = false;
+                
+                // Scroll to results
+                resultsSection.scrollIntoView({ behavior: 'smooth' });
+            }
+            
+            function readFileAsBase64(file) {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                        // Remove the data URL prefix (e.g., "data:image/png;base64,")
+                        const base64String = reader.result.split(',')[1];
+                        resolve(base64String);
+                    };
+                    reader.onerror = reject;
+                    reader.readAsDataURL(file);
+                });
+            }
+            
+            async function uploadFileToGitHub(repoOwner, repoName, branch, path, content, token) {
+                const apiUrl = `https://api.github.com/repos/${repoOwner}/${repoName}/contents/${encodeURIComponent(path)}`;
+                
+                const response = await fetch(apiUrl, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `token ${token}`,
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/vnd.github.v3+json'
+                    },
+                    body: JSON.stringify({
+                        message: `Upload ${path}`,
+                        content: content,
+                        branch: branch
+                    })
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.message || 'Failed to upload file');
+                }
+                
+                const data = await response.json();
+                
+                // Construct raw content URL
+                return `https://raw.githubusercontent.com/${repoOwner}/${repoName}/${branch}/${path}`;
+            }
+            
+            function copyLinksToClipboard() {
+                if (uploadedUrls.length === 0) {
+                    alert('No links to copy');
+                    return;
+                }
+                
+                const linksText = uploadedUrls.join('\n');
+                
+                navigator.clipboard.writeText(linksText).then(() => {
+                    // Show feedback
+                    const originalText = copyLinksBtn.innerHTML;
+                    copyLinksBtn.innerHTML = '<i class="fas fa-check mr-2"></i> Copied!';
+                    copyLinksBtn.classList.remove('bg-gray-100', 'hover:bg-gray-200');
+                    copyLinksBtn.classList.add('bg-green-100', 'text-green-700');
+                    
+                    setTimeout(() => {
+                        copyLinksBtn.innerHTML = originalText;
+                        copyLinksBtn.classList.remove('bg-green-100', 'text-green-700');
+                        copyLinksBtn.classList.add('bg-gray-100', 'hover:bg-gray-200');
+                    }, 2000);
+                }).catch(err => {
+                    console.error('Failed to copy links:', err);
+                    alert('Failed to copy links to clipboard');
+                });
+            }
+        });
+    </script>
+</body>
+</html>
